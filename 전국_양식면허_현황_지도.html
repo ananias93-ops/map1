@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>전국 양식면허 현황 지도 (2026.8.1 기준)</title>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            color: #ffffff;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+        }
+        header .title-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        header .title-area i {
+            font-size: 24px;
+            color: #38bdf8;
+        }
+        header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        header p {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        /* Container Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            position: relative;
+            height: calc(100vh - 68px);
+        }
+
+        /* Map Area */
+        #map {
+            flex: 1;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Sidebar / Dashboard */
+        .sidebar {
+            width: 380px;
+            background: #ffffff;
+            border-left: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            z-index: 500;
+            box-shadow: -4px 0 16px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+
+        /* KPI Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 16px;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .stat-card {
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .stat-card .label {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .stat-card .value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 4px;
+        }
+
+        /* Controls / Filters */
+        .controls {
+            padding: 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 6px;
+        }
+        .control-group select, .control-group input {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 13px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .control-group select:focus, .control-group input:focus {
+            border-color: #0284c7;
+            box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
+        }
+
+        /* List Area */
+        .list-header {
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #334155;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .region-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .region-item {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            border: 1px solid #f1f5f9;
+            background: #ffffff;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .region-item:hover {
+            background: #e0f2fe;
+            border-color: #7dd3fc;
+        }
+        .region-item .name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #0f172a;
+        }
+        .region-item .sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .region-item .badge {
+            background: #0284c7;
+            color: #ffffff;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        /* Tooltip & Popup Styling */
+        .custom-tooltip {
+            background: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
+            border-radius: 10px !important;
+            padding: 14px !important;
+            min-width: 240px;
+            font-family: 'Pretendard', sans-serif;
+        }
+        .leaflet-tooltip-bottom:before, .leaflet-tooltip-top:before,
+        .leaflet-tooltip-left:before, .leaflet-tooltip-right:before {
+            display: none !important;
+        }
+
+        .tooltip-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tooltip-title span.total-tag {
+            background: #0284c7;
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            margin-bottom: 5px;
+            color: #334155;
+        }
+        .tooltip-row .label {
+            color: #64748b;
+        }
+        .tooltip-row .val {
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .bar-container {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        /* Legend */
+        .legend {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            font-size: 12px;
+            line-height: 20px;
+            color: #334155;
+            backdrop-filter: blur(4px);
+        }
+        .legend-title {
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #0f172a;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="title-area">
+            <i class="fa-solid fa-water"></i>
+            <div>
+                <h1>전국 양식면허 현황 모니터링 지도</h1>
+                <p>해양수산부/지자체 기준 전국 시군구별 양식면허 분포 및 현황 (2026.08.01)</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Leaflet Map -->
+        <div id="map"></div>
+
+        <!-- Sidebar Panel -->
+        <div class="sidebar">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">총 면허 건수</div>
+                    <div class="value" id="kpi-total">9,866 건</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">조사 지역수</div>
+                    <div class="value" id="kpi-regions">58 개 시군구</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">최다 면허 지역</div>
+                    <div class="value" style="font-size: 16px; color: #0284c7;">전남 완도군 (1,594)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">주요 양식 품종</div>
+                    <div class="value" style="font-size: 16px; color: #16a34a;">패류 (55.1%)</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label><i class="fa-solid fa-map-location-dot"></i> 시·도 광역지역 선택</label>
+                    <select id="sido-select" onchange="filterData()">
+                        <option value="ALL">전국 전체 보기</option>
+                        <option value="전남광주통합특별시">전남광주통합특별시 (6,756건)</option>
+                        <option value="경상남도">경상남도 (2,521건)</option>
+                        <option value="충청남도">충청남도 (885건)</option>
+                        <option value="경상북도">경상북도 (524건)</option>
+                        <option value="전북특별자치도">전북특별자치도 (463건)</option>
+                        <option value="제주특별자치도">제주특별자치도 (443건)</option>
+                        <option value="강원특별자치도">강원특별자치도 (245건)</option>
+                        <option value="인천광역시">인천광역시 (229건)</option>
+                        <option value="부산광역시">부산광역시 (152건)</option>
+                        <option value="울산광역시">울산광역시 (59건)</option>
+                        <option value="경기도">경기도 (34건)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label><i class="fa-solid fa-magnifying-glass"></i> 시·군·구 검색</label>
+                    <input type="text" id="search-input" placeholder="예: 완도군, 통영시, 태안군..." onkeyup="filterData()">
+                </div>
+            </div>
+
+            <div class="list-header">
+                <span>지역별 현황 목록</span>
+                <span id="list-count" style="color:#0284c7;">58개 지역</span>
+            </div>
+
+            <div class="region-list" id="region-list-box">
+                <!-- Dynamically filled -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Raw Dataset from Excel
+        const rawData = [
+  {
+    "sido": "강원특별자치도",
+    "sigungu": "강릉시",
+    "lat": 37.7519,
+    "lng": 128.8761,
+    "total": 85,
+    "seaweed": 2,
+    "shellfish": 4,
+    "fish": 12,
+    "complex": 42,
+    "coop": 20,
+    "offshore": 0,
+    "land_tank": 5,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "강원특별자치도",
+    "sigungu": "동해시",
+    "lat": 37.5247,
+    "lng": 129.1143,
+    "total": 7,
+    "seaweed": 0,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 0,
+    "coop": 6,
+    "offshore": 1,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "협동"
+  },
+  {
+    "sido": "강원특별자치도",
+    "sigungu": "속초시",
+    "lat": 38.207,
+    "lng": 128.5918,
+    "total": 13,
+    "seaweed": 0,
+    "shellfish": 4,
+    "fish": 1,
+    "complex": 1,
+    "coop": 6,
+    "offshore": 0,
+    "land_tank": 1,
+    "land_earthen": 0,
+    "dominant": "협동"
+  },
+  {
+    "sido": "강원특별자치도",
+    "sigungu": "삼척시",
+    "lat": 37.4498,
+    "lng": 129.1652,
+    "total": 42,
+    "seaweed": 1,
+    "shellfish": 2,
+    "fish": 5,
+    "complex": 14,
+    "coop": 19,
+    "offshore": 0,
+    "land_tank": 1,
+    "land_earthen": 0,
+    "dominant": "협동"
+  },
+  {
+    "sido": "강원특별자치도",
+    "sigungu": "고성군",
+    "lat": 38.3805,
+    "lng": 128.4678,
+    "total": 50,
+    "seaweed": 0,
+    "shellfish": 7,
+    "fish": 5,
+    "complex": 6,
+    "coop": 20,
+    "offshore": 1,
+    "land_tank": 11,
+    "land_earthen": 0,
+    "dominant": "협동"
+  },
+  {
+    "sido": "강원특별자치도",
+    "sigungu": "양양군",
+    "lat": 38.0754,
+    "lng": 128.6189,
+    "total": 48,
+    "seaweed": 0,
+    "shellfish": 1,
+    "fish": 3,
+    "complex": 20,
+    "coop": 17,
+    "offshore": 1,
+    "land_tank": 6,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "경기도",
+    "sigungu": "안산시",
+    "lat": 37.3219,
+    "lng": 126.8309,
+    "total": 17,
+    "seaweed": 1,
+    "shellfish": 4,
+    "fish": 0,
+    "complex": 8,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 2,
+    "land_earthen": 2,
+    "dominant": "복합"
+  },
+  {
+    "sido": "경기도",
+    "sigungu": "김포시",
+    "lat": 37.6153,
+    "lng": 126.7157,
+    "total": 5,
+    "seaweed": 0,
+    "shellfish": 0,
+    "fish": 5,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "어류등"
+  },
+  {
+    "sido": "경기도",
+    "sigungu": "화성시",
+    "lat": 37.1995,
+    "lng": 126.8313,
+    "total": 12,
+    "seaweed": 0,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 2,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 2,
+    "land_earthen": 8,
+    "dominant": "육상축제"
+  },
+  {
+    "sido": "경상남도",
+    "sigungu": "창원시",
+    "lat": 35.228,
+    "lng": 128.6811,
+    "total": 202,
+    "seaweed": 0,
+    "shellfish": 119,
+    "fish": 74,
+    "complex": 0,
+    "coop": 7,
+    "offshore": 0,
+    "land_tank": 2,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "경상남도",
+    "sigungu": "통영시",
+    "lat": 34.8544,
+    "lng": 128.4332,
+    "total": 933,
+    "seaweed": 63,
+    "shellfish": 582,
+    "fish": 231,
+    "complex": 15,
+    "coop": 23,
+    "offshore": 2,
+    "land_tank": 17,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "경상남도",
+    "sigungu": "사천시",
+    "lat": 35.0038,
+    "lng": 128.0642,
+    "total": 61,
+    "seaweed": 0,
+    "shellfish": 42,
+    "fish": 6,
+    "complex": 0,
+    "coop": 6,
+    "offshore": 0,
+    "land_tank": 4,
+    "land_earthen": 3,
+    "dominant": "패류"
+  },
+  {
+    "sido": "경상남도",
+    "sigungu": "거제시",
+    "lat": 34.8806,
+    "lng": 128.6211,
+    "total": 547,
+    "seaweed": 8,
+    "shellfish": 356,
+    "fish": 109,
+    "complex": 3,
+    "coop": 21,
+    "offshore": 0,
+    "land_tank": 48,
+    "land_earthen": 2,
+    "dominant": "패류"
+  },
+  {
+    "sido": "경상남도",
+    "sigungu": "고성군",
+    "lat": 34.9731,
+    "lng": 128.3223,
+    "total": 349,
+    "seaweed": 0,
+    "shellfish": 288,
+    "fish": 48,
+    "complex": 1,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 10,
+    "land_earthen": 2,
+    "dominant": "패류"
+  },
+  {
+    "sido": "경상남도",
+    "sigungu": "남해군",
+    "lat": 34.8377,
+    "lng": 127.8924,
+    "total": 383,
+    "seaweed": 0,
+    "shellfish": 312,
+    "fish": 42,
+    "complex": 4,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 23,
+    "land_earthen": 2,
+    "dominant": "패류"
+  },
+  {
+    "sido": "경상남도",
+    "sigungu": "하동군",
+    "lat": 35.0672,
+    "lng": 127.7512,
+    "total": 46,
+    "seaweed": 0,
+    "shellfish": 19,
+    "fish": 8,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 19,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "경상북도",
+    "sigungu": "포항시",
+    "lat": 36.019,
+    "lng": 129.3435,
+    "total": 213,
+    "seaweed": 1,
+    "shellfish": 5,
+    "fish": 41,
+    "complex": 69,
+    "coop": 55,
+    "offshore": 1,
+    "land_tank": 41,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "경상북도",
+    "sigungu": "경주시",
+    "lat": 35.8562,
+    "lng": 129.2247,
+    "total": 28,
+    "seaweed": 0,
+    "shellfish": 1,
+    "fish": 7,
+    "complex": 11,
+    "coop": 6,
+    "offshore": 0,
+    "land_tank": 3,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "경상북도",
+    "sigungu": "영덕군",
+    "lat": 36.4151,
+    "lng": 129.3838,
+    "total": 162,
+    "seaweed": 8,
+    "shellfish": 1,
+    "fish": 36,
+    "complex": 74,
+    "coop": 36,
+    "offshore": 0,
+    "land_tank": 7,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "경상북도",
+    "sigungu": "울진군",
+    "lat": 36.9931,
+    "lng": 129.4005,
+    "total": 105,
+    "seaweed": 3,
+    "shellfish": 0,
+    "fish": 20,
+    "complex": 27,
+    "coop": 41,
+    "offshore": 0,
+    "land_tank": 14,
+    "land_earthen": 0,
+    "dominant": "협동"
+  },
+  {
+    "sido": "경상북도",
+    "sigungu": "울릉군",
+    "lat": 37.4844,
+    "lng": 130.9057,
+    "total": 16,
+    "seaweed": 0,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 0,
+    "coop": 15,
+    "offshore": 0,
+    "land_tank": 1,
+    "land_earthen": 0,
+    "dominant": "협동"
+  },
+  {
+    "sido": "부산광역시",
+    "sigungu": "서구",
+    "lat": 35.0979,
+    "lng": 129.0244,
+    "total": 1,
+    "seaweed": 1,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "부산광역시",
+    "sigungu": "영도구",
+    "lat": 35.0912,
+    "lng": 129.0678,
+    "total": 1,
+    "seaweed": 1,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "부산광역시",
+    "sigungu": "해운대구",
+    "lat": 35.1631,
+    "lng": 129.1636,
+    "total": 8,
+    "seaweed": 4,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 4,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "부산광역시",
+    "sigungu": "사하구",
+    "lat": 35.1044,
+    "lng": 128.9749,
+    "total": 10,
+    "seaweed": 10,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "부산광역시",
+    "sigungu": "강서구",
+    "lat": 35.1596,
+    "lng": 128.909,
+    "total": 25,
+    "seaweed": 20,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 5,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "부산광역시",
+    "sigungu": "기장군",
+    "lat": 35.2447,
+    "lng": 129.2223,
+    "total": 107,
+    "seaweed": 61,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 18,
+    "coop": 17,
+    "offshore": 0,
+    "land_tank": 11,
+    "land_earthen": 0,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "울산광역시",
+    "sigungu": "동구",
+    "lat": 35.5048,
+    "lng": 129.4166,
+    "total": 5,
+    "seaweed": 1,
+    "shellfish": 1,
+    "fish": 0,
+    "complex": 2,
+    "coop": 1,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "울산광역시",
+    "sigungu": "북구",
+    "lat": 35.5826,
+    "lng": 129.3606,
+    "total": 23,
+    "seaweed": 8,
+    "shellfish": 3,
+    "fish": 1,
+    "complex": 9,
+    "coop": 2,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "울산광역시",
+    "sigungu": "울주군",
+    "lat": 35.5225,
+    "lng": 129.1528,
+    "total": 31,
+    "seaweed": 6,
+    "shellfish": 3,
+    "fish": 2,
+    "complex": 14,
+    "coop": 1,
+    "offshore": 0,
+    "land_tank": 5,
+    "land_earthen": 0,
+    "dominant": "복합"
+  },
+  {
+    "sido": "인천광역시",
+    "sigungu": "영종구",
+    "lat": 37.4925,
+    "lng": 126.495,
+    "total": 20,
+    "seaweed": 2,
+    "shellfish": 16,
+    "fish": 0,
+    "complex": 2,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "인천광역시",
+    "sigungu": "강화군",
+    "lat": 37.7466,
+    "lng": 126.488,
+    "total": 49,
+    "seaweed": 0,
+    "shellfish": 0,
+    "fish": 28,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 6,
+    "land_earthen": 15,
+    "dominant": "어류등"
+  },
+  {
+    "sido": "인천광역시",
+    "sigungu": "옹진군",
+    "lat": 37.2405,
+    "lng": 126.155,
+    "total": 160,
+    "seaweed": 10,
+    "shellfish": 90,
+    "fish": 25,
+    "complex": 24,
+    "coop": 2,
+    "offshore": 0,
+    "land_tank": 2,
+    "land_earthen": 7,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "목포시",
+    "lat": 34.8118,
+    "lng": 126.3922,
+    "total": 18,
+    "seaweed": 11,
+    "shellfish": 0,
+    "fish": 0,
+    "complex": 7,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "여수시",
+    "lat": 34.7604,
+    "lng": 127.6622,
+    "total": 903,
+    "seaweed": 58,
+    "shellfish": 734,
+    "fish": 78,
+    "complex": 6,
+    "coop": 2,
+    "offshore": 0,
+    "land_tank": 22,
+    "land_earthen": 3,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "순천시",
+    "lat": 34.9506,
+    "lng": 127.4872,
+    "total": 114,
+    "seaweed": 0,
+    "shellfish": 97,
+    "fish": 0,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 1,
+    "land_earthen": 16,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "고흥군",
+    "lat": 34.6111,
+    "lng": 127.2831,
+    "total": 926,
+    "seaweed": 384,
+    "shellfish": 408,
+    "fish": 6,
+    "complex": 32,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 58,
+    "land_earthen": 38,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "보성군",
+    "lat": 34.7714,
+    "lng": 127.0798,
+    "total": 321,
+    "seaweed": 0,
+    "shellfish": 308,
+    "fish": 1,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 12,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "장흥군",
+    "lat": 34.6817,
+    "lng": 126.9073,
+    "total": 266,
+    "seaweed": 100,
+    "shellfish": 143,
+    "fish": 1,
+    "complex": 5,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 16,
+    "land_earthen": 1,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "강진군",
+    "lat": 34.6421,
+    "lng": 126.7675,
+    "total": 100,
+    "seaweed": 7,
+    "shellfish": 84,
+    "fish": 0,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 4,
+    "land_earthen": 5,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "해남군",
+    "lat": 34.5734,
+    "lng": 126.5989,
+    "total": 251,
+    "seaweed": 82,
+    "shellfish": 122,
+    "fish": 0,
+    "complex": 18,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 29,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "무안군",
+    "lat": 34.9904,
+    "lng": 126.4817,
+    "total": 105,
+    "seaweed": 23,
+    "shellfish": 32,
+    "fish": 25,
+    "complex": 1,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 9,
+    "land_earthen": 15,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "함평군",
+    "lat": 35.0657,
+    "lng": 126.5165,
+    "total": 37,
+    "seaweed": 3,
+    "shellfish": 30,
+    "fish": 3,
+    "complex": 1,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "영광군",
+    "lat": 35.2773,
+    "lng": 126.512,
+    "total": 29,
+    "seaweed": 3,
+    "shellfish": 14,
+    "fish": 2,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 5,
+    "land_earthen": 5,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "완도군",
+    "lat": 34.311,
+    "lng": 126.755,
+    "total": 1594,
+    "seaweed": 599,
+    "shellfish": 499,
+    "fish": 12,
+    "complex": 267,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 214,
+    "land_earthen": 3,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "진도군",
+    "lat": 34.4868,
+    "lng": 126.2634,
+    "total": 788,
+    "seaweed": 273,
+    "shellfish": 163,
+    "fish": 2,
+    "complex": 323,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 26,
+    "land_earthen": 1,
+    "dominant": "복합"
+  },
+  {
+    "sido": "전남광주통합특별시",
+    "sigungu": "신안군",
+    "lat": 34.8336,
+    "lng": 126.1017,
+    "total": 1304,
+    "seaweed": 608,
+    "shellfish": 183,
+    "fish": 44,
+    "complex": 188,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 14,
+    "land_earthen": 267,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "전북특별자치도",
+    "sigungu": "군산시",
+    "lat": 35.9676,
+    "lng": 126.7366,
+    "total": 63,
+    "seaweed": 14,
+    "shellfish": 37,
+    "fish": 9,
+    "complex": 3,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전북특별자치도",
+    "sigungu": "고창군",
+    "lat": 35.4358,
+    "lng": 126.702,
+    "total": 220,
+    "seaweed": 4,
+    "shellfish": 146,
+    "fish": 45,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 6,
+    "land_earthen": 19,
+    "dominant": "패류"
+  },
+  {
+    "sido": "전북특별자치도",
+    "sigungu": "부안군",
+    "lat": 35.7317,
+    "lng": 126.7333,
+    "total": 180,
+    "seaweed": 12,
+    "shellfish": 105,
+    "fish": 29,
+    "complex": 3,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 6,
+    "land_earthen": 25,
+    "dominant": "패류"
+  },
+  {
+    "sido": "제주특별자치도",
+    "sigungu": "제주시",
+    "lat": 33.4996,
+    "lng": 126.5312,
+    "total": 180,
+    "seaweed": 1,
+    "shellfish": 11,
+    "fish": 11,
+    "complex": 10,
+    "coop": 11,
+    "offshore": 1,
+    "land_tank": 135,
+    "land_earthen": 0,
+    "dominant": "육상수조"
+  },
+  {
+    "sido": "제주특별자치도",
+    "sigungu": "서귀포시",
+    "lat": 33.2541,
+    "lng": 126.5601,
+    "total": 263,
+    "seaweed": 2,
+    "shellfish": 0,
+    "fish": 2,
+    "complex": 0,
+    "coop": 8,
+    "offshore": 3,
+    "land_tank": 248,
+    "land_earthen": 0,
+    "dominant": "육상수조"
+  },
+  {
+    "sido": "충청남도",
+    "sigungu": "보령시",
+    "lat": 36.3532,
+    "lng": 126.5981,
+    "total": 68,
+    "seaweed": 5,
+    "shellfish": 37,
+    "fish": 13,
+    "complex": 13,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 0,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "충청남도",
+    "sigungu": "서산시",
+    "lat": 36.7845,
+    "lng": 126.4503,
+    "total": 160,
+    "seaweed": 4,
+    "shellfish": 114,
+    "fish": 15,
+    "complex": 9,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 5,
+    "land_earthen": 13,
+    "dominant": "패류"
+  },
+  {
+    "sido": "충청남도",
+    "sigungu": "당진시",
+    "lat": 36.8898,
+    "lng": 126.6459,
+    "total": 21,
+    "seaweed": 0,
+    "shellfish": 1,
+    "fish": 0,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 10,
+    "land_earthen": 10,
+    "dominant": "육상수조"
+  },
+  {
+    "sido": "충청남도",
+    "sigungu": "서천군",
+    "lat": 36.0803,
+    "lng": 126.6918,
+    "total": 38,
+    "seaweed": 13,
+    "shellfish": 8,
+    "fish": 0,
+    "complex": 4,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 3,
+    "land_earthen": 10,
+    "dominant": "해조류"
+  },
+  {
+    "sido": "충청남도",
+    "sigungu": "홍성군",
+    "lat": 36.6013,
+    "lng": 126.6608,
+    "total": 26,
+    "seaweed": 1,
+    "shellfish": 14,
+    "fish": 10,
+    "complex": 0,
+    "coop": 0,
+    "offshore": 0,
+    "land_tank": 1,
+    "land_earthen": 0,
+    "dominant": "패류"
+  },
+  {
+    "sido": "충청남도",
+    "sigungu": "태안군",
+    "lat": 36.7456,
+    "lng": 126.298,
+    "total": 572,
+    "seaweed": 27,
+    "shellfish": 283,
+    "fish": 125,
+    "complex": 61,
+    "coop": 2,
+    "offshore": 0,
+    "land_tank": 8,
+    "land_earthen": 66,
+    "dominant": "패류"
+  }
+];
+
+        // Dominant type color palette
+        const colorMap = {
+            '패류': '#0284c7',      // Deep Blue
+            '해조류': '#16a34a',     // Green
+            '어류등': '#dc2626',     // Red/Coral
+            '복합': '#7c3aed',      // Purple
+            '협동': '#d97706',      // Orange
+            '외해': '#0891b2',      // Cyan
+            '육상수조': '#ea580c',   // Deep Orange
+            '육상축제': '#65a30d'    // Lime
+        };
+
+        // Initialize Map
+        const map = L.map('map', {
+            center: [35.8, 127.8],
+            zoom: 7,
+            zoomControl: true
+        });
+
+        // Base Map Tile (CartoDB Positron for clean visual tone)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        let markers = [];
+
+        // Helper: Calculate marker radius based on total count
+        function getRadius(total) {
+            if (total > 1000) return 26;
+            if (total > 500) return 20;
+            if (total > 200) return 16;
+            if (total > 50) return 12;
+            if (total > 10) return 9;
+            return 6;
+        }
+
+        // Render markers on map and sidebar
+        function renderMap(filteredData) {
+            // Clear existing markers
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            const listContainer = document.getElementById('region-list-box');
+            listContainer.innerHTML = '';
+
+            let totalCountSum = 0;
+
+            filteredData.sort((a, b) => b.total - a.total);
+
+            filteredData.forEach(item => {
+                totalCountSum += item.total;
+                const color = colorMap[item.dominant] || '#64748b';
+                const radius = getRadius(item.total);
+
+                // Create Circle Marker
+                const marker = L.circleMarker([item.lat, item.lng], {
+                    radius: radius,
+                    fillColor: color,
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.85
+                });
+
+                // Tooltip content on Hover (마우스 오버 시 현황 카드)
+                const tooltipHtml = `
+                    <div class="custom-tooltip">
+                        <div class="tooltip-title">
+                            <span>${item.sido} <b>${item.sigungu}</b></span>
+                            <span class="total-tag">총 ${item.total.toLocaleString()}건</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="label"><i class="fa-solid fa-fish" style="color:#0284c7;"></i> 패류양식업</span>
+                            <span class="val">${item.shellfish.toLocaleString()}건</span>
+                        </div>
+                        <div class="bar-container"><div class="bar-fill" style="width: ${item.total ? (item.shellfish/item.total*100) : 0}%; background:#0284c7;"></div></div>
+
+                        <div class="tooltip-row">
+                            <span class="label"><i class="fa-solid fa-seedling" style="color:#16a34a;"></i> 해조류양식업</span>
+                            <span class="val">${item.seaweed.toLocaleString()}건</span>
+                        </div>
+                        <div class="bar-container"><div class="bar-fill" style="width: ${item.total ? (item.seaweed/item.total*100) : 0}%; background:#16a34a;"></div></div>
+
+                        <div class="tooltip-row">
+                            <span class="label"><i class="fa-solid fa-fish-fins" style="color:#dc2626;"></i> 어류등양식업</span>
+                            <span class="val">${item.fish.toLocaleString()}건</span>
+                        </div>
+                        <div class="bar-container"><div class="bar-fill" style="width: ${item.total ? (item.fish/item.total*100) : 0}%; background:#dc2626;"></div></div>
+
+                        <div class="tooltip-row">
+                            <span class="label"><i class="fa-solid fa-layer-group" style="color:#7c3aed;"></i> 복합양식업</span>
+                            <span class="val">${item.complex.toLocaleString()}건</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="label"><i class="fa-solid fa-users" style="color:#d97706;"></i> 협동양식업</span>
+                            <span class="val">${item.coop.toLocaleString()}건</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="label"><i class="fa-solid fa-building-water" style="color:#ea580c;"></i> 육상수조/축제식</span>
+                            <span class="val">${(item.land_tank + item.land_earthen).toLocaleString()}건</span>
+                        </div>
+                        <div style="font-size: 10px; color: #94a3b8; text-align: right; margin-top: 6px;">* 마우스 우클릭/클릭 시 상세조회</div>
+                    </div>
+                `;
+
+                marker.bindTooltip(tooltipHtml, {
+                    direction: 'top',
+                    sticky: true,
+                    className: 'leaflet-tooltip-custom'
+                });
+
+                // Hover visual response
+                marker.on('mouseover', function () {
+                    this.setStyle({ weight: 4, color: '#0f172a', fillOpacity: 1 });
+                });
+                marker.on('mouseout', function () {
+                    this.setStyle({ weight: 2, color: '#ffffff', fillOpacity: 0.85 });
+                });
+
+                // Click to Pan/Zoom
+                marker.on('click', function () {
+                    map.setView([item.lat, item.lng], 10);
+                });
+
+                marker.addTo(map);
+                markers.push(marker);
+
+                // Add item to sidebar list
+                const listEl = document.createElement('div');
+                listEl.className = 'region-item';
+                listEl.innerHTML = `
+                    <div>
+                        <div class="name">${item.sigungu} <span style="font-size:11px; font-weight:normal; color:#64748b;">(${item.sido})</span></div>
+                        <div class="sub">주요: <b>${item.dominant}</b> (패류:${item.shellfish}, 해조류:${item.seaweed}, 어류:${item.fish})</div>
+                    </div>
+                    <div class="badge">${item.total.toLocaleString()}건</div>
+                `;
+                listEl.onclick = () => {
+                    map.setView([item.lat, item.lng], 11);
+                    marker.openTooltip();
+                };
+                listContainer.appendChild(listEl);
+            });
+
+            document.getElementById('list-count').innerText = `${filteredData.length}개 지역`;
+        }
+
+        // Filter Function
+        function filterData() {
+            const sidoVal = document.getElementById('sido-select').value;
+            const searchVal = document.getElementById('search-input').value.trim().toLowerCase();
+
+            const filtered = rawData.filter(item => {
+                const matchSido = (sidoVal === 'ALL') || (item.sido === sidoVal);
+                const matchSearch = (item.sigungu.toLowerCase().includes(searchVal)) || (item.sido.toLowerCase().includes(searchVal));
+                return matchSido && matchSearch;
+            });
+
+            renderMap(filtered);
+
+            // Adjust view if filtered down
+            if (filtered.length > 0 && sidoVal !== 'ALL') {
+                const avgLat = filtered.reduce((sum, d) => sum + d.lat, 0) / filtered.length;
+                const avgLng = filtered.reduce((sum, d) => sum + d.lng, 0) / filtered.length;
+                map.setView([avgLat, avgLng], 8);
+            }
+        }
+
+        // Add Legend
+        const legend = L.control({ position: 'bottomleft' });
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = `
+                <div class="legend-title"><i class="fa-solid fa-filter"></i> 최다 양식 유형 (범례)</div>
+                <div class="legend-item"><div class="legend-color" style="background:#0284c7;"></div> 패류양식업</div>
+                <div class="legend-item"><div class="legend-color" style="background:#16a34a;"></div> 해조류양식업</div>
+                <div class="legend-item"><div class="legend-color" style="background:#dc2626;"></div> 어류등양식업</div>
+                <div class="legend-item"><div class="legend-color" style="background:#7c3aed;"></div> 복합양식업</div>
+                <div class="legend-item"><div class="legend-color" style="background:#ea580c;"></div> 육상수조/축제식</div>
+                <div style="margin-top: 6px; font-size: 10px; color: #64748b;">* 원의 크기는 총 면허 수에 비례</div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+
+        // Initial Render
+        renderMap(rawData);
+    </script>
+</body>
+</html>
